@@ -11,10 +11,13 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using System.Xml;
@@ -592,6 +595,33 @@ namespace DBToExcel
             }
         }
 
+        private ToolStripMenuItem _CreateCSharpToolStripMenuItem = null;
+        internal virtual ToolStripMenuItem CreateCSharpToolStripMenuItem
+        {
+            [DebuggerNonUserCode]
+            get
+            {
+                return this._CreateCSharpToolStripMenuItem;
+            }
+            [DebuggerNonUserCode]
+            [MethodImpl(MethodImplOptions.Synchronized)]
+            set
+            {
+                EventHandler value2 = new EventHandler(this.CreateCSHarpToolStripMenuItem_Click);
+                bool flag = this._CreateCSharpToolStripMenuItem != null;
+                if (flag)
+                {
+                    this._CreateCSharpToolStripMenuItem.Click -= value2;
+                }
+                this._CreateCSharpToolStripMenuItem = value;
+                flag = (this._CreateCSharpToolStripMenuItem != null);
+                if (flag)
+                {
+                    this._CreateCSharpToolStripMenuItem.Click += value2;
+                }
+            }
+        }
+
         internal virtual ToolStripMenuItem CreateAWLSourceToolStripMenuItem
         {
             [DebuggerNonUserCode]
@@ -842,6 +872,7 @@ namespace DBToExcel
             this.OpenExcelFileToolStripMenuItem = new ToolStripMenuItem();
             this.SelectedBlocksToolStripMenuItem = new ToolStripMenuItem();
             this.CreateExcelToolStripMenuItem = new ToolStripMenuItem();
+            CreateCSharpToolStripMenuItem = new ToolStripMenuItem();
             this.CreateAWLSourceToolStripMenuItem = new ToolStripMenuItem();
             this.ActualValuesInitialValuesToolStripMenuItem = new ToolStripMenuItem();
             this.ReadActualValuesToolStripMenuItem = new ToolStripMenuItem();
@@ -903,6 +934,7 @@ namespace DBToExcel
             this.OpenExcelFileToolStripMenuItem.Text = "Open Excel file";
             this.SelectedBlocksToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[]
             {
+                CreateCSharpToolStripMenuItem,
                 this.CreateExcelToolStripMenuItem,
                 this.CreateAWLSourceToolStripMenuItem,
                 this.ActualValuesInitialValuesToolStripMenuItem,
@@ -918,6 +950,11 @@ namespace DBToExcel
             size = new Size(228, 22);
             arg_3C8_0.Size = size;
             this.CreateExcelToolStripMenuItem.Text = "Create Excel";
+
+            CreateCSharpToolStripMenuItem.Name = "CreateCSharpToolStripMenuItem";
+            CreateCSharpToolStripMenuItem.Text = "Create C# source";
+            CreateCSharpToolStripMenuItem.Size = new Size(228, 22);
+
             this.CreateAWLSourceToolStripMenuItem.Name = "CreateAWLSourceToolStripMenuItem";
             ToolStripItem arg_407_0 = this.CreateAWLSourceToolStripMenuItem;
             size = new Size(228, 22);
@@ -1888,6 +1925,191 @@ namespace DBToExcel
         private void CreateExcelToolStripMenuItem_Click(object sender, EventArgs e)
         {
             this.CreateExcel();
+        }
+
+        private void CreateCSHarpToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var fbd = new FolderBrowserDialog()
+            {
+                ShowNewFolderButton = true,
+            };
+            var res = fbd.ShowDialog();
+            if (res != DialogResult.OK)
+                return;
+
+            Cursor = Cursors.WaitCursor;
+            this.Enabled = false;
+            try
+            {
+                var root = fbd.SelectedPath;
+                foreach (var pair in CreateCSharp())
+                {
+                    var name = pair.Key;
+                    var sb = pair.Value;
+
+                    var fpath = Path.Combine(root, name + ".cs");
+                    if (File.Exists(fpath))
+                        File.Delete(fpath);
+
+                    //var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+                    File.WriteAllText(fpath, sb.ToString());
+                }
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+                this.Enabled = true;
+            }
+
+            Process.Start("explorer", fbd.SelectedPath);
+        }
+
+        
+        public Dictionary<string, StringBuilder> CreateCSharp()
+        {
+            var items = lbxSelDbs.Items.Cast<clsDb>();
+            if (items == null)
+                return null;
+
+            var dict = new Dictionary<string, StringBuilder>();
+
+            dict["DBBase"] = new StringBuilder(@"public class DBBase
+{
+    public int DB { get; set; }
+}
+
+public class S7DBAttribute : System.Attribute
+{
+    public int DB { get; set; }
+}
+
+public class S7ArrayAttribute : System.Attribute
+{
+    public int Count { get; set; }
+}
+");
+
+            foreach (var db in items)
+            {
+                try
+                {
+                    //Console.WriteLine("DB{0} - {1} - {2}", db.Number, db.Symbol, db.SymbolComment);
+                    var sb = new StringBuilder();
+
+                    var className = db.Symbol.Replace(" ", "");
+                    var comment = createComment(db, "");
+                    sb.Append(comment);
+                    sb.AppendFormat(@"[S7DB(DB = {1})]
+public class {0}: DBBase // DB{1}
+{{", className, db.Number);
+                    var tags = db.Tags.Cast<clsTag>();
+                    sb.Append(parseTags(tags));
+                    sb.Append("\r\n}");
+                    
+                    Console.WriteLine(sb);
+                    Console.WriteLine("-------");
+
+                    dict[string.Format("DB{0}", db.Number)] = sb;
+                }
+                catch (Exception exc)
+                {
+                    throw exc;
+                }
+            }
+
+            return dict;
+        }
+
+        Dictionary<string, string> typeConverter = new Dictionary<string, string>()
+        {
+            {"INT", "short"},
+            {"BOOL", "bool"},
+            {"DINT", "int"},
+            {"REAL", "double"},
+            {"BYTE", "byte"},
+            {"WORD", "ushort"},
+            {"CHAR", "byte"},
+            {"TIME", "int"},
+            {"DWORD", "uint"},
+            {"DATE_AND_TIME", "DateTime"},
+            //{"", ""},
+            //{"", ""},
+            //{"", ""},
+            //{"", ""},// = new
+            //{"", ""},
+            //{"", ""},
+        };
+
+        StringBuilder createComment(IComment tag, string tabs)
+        {
+            var sb = new StringBuilder();
+            var comment = tag.Comment.Replace('\0', ' ');
+            sb.AppendFormat("\r\n{0}/// <summary>\r\n", tabs);
+            sb.AppendFormat(tabs + "/// {0}\r\n", comment);
+            sb.AppendLine(tabs + "/// </summary>");
+            return sb;
+        }
+        
+        StringBuilder parseTags(IEnumerable<clsTag> tags, int nestCount = 1)
+        {
+            var tabs = Enumerable.Range(0, nestCount).Select(i => "\t").Aggregate("", (s1, s2) => s1 + s2);
+            var sb = new StringBuilder();
+            foreach (var tag in tags)
+            {
+                //Console.WriteLine("\t{0} {1} {{ get; set; }} // {2}", tag.DataType, tag.Name, tag.Comment);
+
+                sb.Append(createComment(tag, tabs));
+                if (tag.DataType.StartsWith("UDT") || tag.DataType.StartsWith("STRUCT"))
+                {
+                    //sb.Append(createComment(tag, tabs));
+                    var className = "T_" + tag.Name;
+                    sb.AppendFormat("{0}public class {1}", tabs, className);
+                    var innerTags = parseTags(tag.Tags.Cast<clsTag>(), nestCount + 1);
+                    sb.AppendLine(tabs + "{");
+                    sb.Append(innerTags);
+                    sb.AppendLine(tabs + "}");
+                    sb.AppendFormat("\r\n{0}public {1} {2} {{ get; set; }}", tabs, className, tag.Name);
+                }
+                else if (tag.DataType.StartsWith("ARRAY"))
+                {
+                    int count = 0;
+                    string @type = "";
+
+                    var m = Regex.Match(tag.DataType, @"ARRAY\s.\[(\d*) \.* (\d*) \] OF (\w*)");
+                    if (m.Success)
+                    {
+                        count = int.Parse(m.Groups[2].Value);
+                        @type = m.Groups[3].Value;
+                    }
+                    else
+                    {
+                        count = tag.Tags.Count;
+                        @type = (tag.Tags[1] as clsTag).DataType;
+                    }
+
+                    //sb.Append(createComment(tag, tabs));
+                    if (!typeConverter.ContainsKey(@type))
+                        throw new Exception(string.Format("Type not found: {0}", @type));
+
+                    sb.AppendFormat("{0}[S7Array(Count = {1})]\r\n", tabs, count);
+                    sb.AppendFormat("{0}public {1} [] {2} {{ get; set; }} // = new {1}[{3}];\r\n", tabs, typeConverter[@type], tag.Name, count);
+                }
+                else if (tag.DataType.StartsWith("STRING"))
+                {
+                    //sb.Append(createComment(tag, tabs));
+                    sb.AppendFormat(tabs + "public string {0} {{ get; set; }}\r\n\r\n", tag.Name);
+                }
+                else
+                {
+                    if (!typeConverter.ContainsKey(tag.DataType))
+                        throw new Exception(string.Format("Type not found: {0}", tag.DataType));
+
+                    //sb.Append(createComment(tag, tabs));
+                    sb.AppendFormat(tabs + "public {0} {1} {{ get; set; }}\r\n\r\n", typeConverter[tag.DataType], tag.Name);
+                }
+            }
+
+            return sb;
         }
 
         public void CreateExcel()

@@ -11,7 +11,7 @@ using System.Windows.Forms;
 
 namespace DBToExcel
 {
-	public class clsDb
+	public class clsDb: IComment
 	{
 		public struct Group
 		{

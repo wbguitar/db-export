@@ -11,7 +11,12 @@ using System.Windows.Forms;
 
 namespace DBToExcel
 {
-    public class clsTag
+    public interface IComment
+    {
+        string Comment { get; set; }
+    }
+
+    public class clsTag: IComment
     {
         private int myArrayLowerBound;
 
