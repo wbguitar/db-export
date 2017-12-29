@@ -7,7 +7,7 @@ using NUnit.Framework;
 ///  
 /// </summary>
 [S7DB(DB = 2)]
-public class Ricettepredosaggio: DBBase // DB2
+public class Ricettepredosaggio : DBBase // DB2
 {
     /// <summary>
     /// Set predosatore 1
