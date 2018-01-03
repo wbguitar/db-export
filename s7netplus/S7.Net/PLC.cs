@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -654,7 +655,8 @@ namespace S7.Net
         public ErrorCode WriteBit(DataType dataType, int db, int startByteAdr, int bitAdr, int value)
         {
             if (value < 0 || value > 1)
-                throw new ArgumentException("Value must be 0 or 1", nameof(value));
+                //throw new ArgumentException("Value must be 0 or 1", nameof(value));
+                throw new ArgumentException("Value must be 0 or 1", MemberInfoGetting.GetMemberName(() => value));
 
             return WriteBit(dataType, db, startByteAdr, bitAdr, value == 1);
         }
@@ -692,7 +694,8 @@ namespace S7.Net
                 }
                 else
                 {
-                    throw new ArgumentException("Value must be a bool or an int to write a bit", nameof(value));
+                    //throw new ArgumentException("Value must be a bool or an int to write a bit", nameof(value));
+                    throw new ArgumentException("Value must be a bool or an int to write a bit", MemberInfoGetting.GetMemberName(() => value));
                 }
 
                 return WriteBit(dataType, db, startByteAdr, bitAdr, bitValue);
@@ -1281,5 +1284,15 @@ namespace S7.Net
         }
 
         #endregion
+    }
+
+
+    public static class MemberInfoGetting
+    {
+        public static string GetMemberName<T>(Expression<Func<T>> memberExpression)
+        {
+            MemberExpression expressionBody = (MemberExpression)memberExpression.Body;
+            return expressionBody.Member.Name;
+        }
     }
 }

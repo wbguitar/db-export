@@ -59,6 +59,7 @@ namespace S7.Net.Types
                         numBytes++;
                     numBytes += 4;
                     break;
+
                 default:
                     var propertyClass = Activator.CreateInstance(type);
                     numBytes += GetClassSize(propertyClass);
@@ -75,6 +76,11 @@ namespace S7.Net.Types
         /// <returns>the number of bytes</returns>
         public static int GetClassSize(object instance)
         {
+            if (instance is TimeSpan)
+                return sizeof(int);
+            if (instance is DateTime)
+                return sizeof(long);
+
             double numBytes = 0.0;
 
             var properties = GetAccessableProperties(instance.GetType());
@@ -94,12 +100,17 @@ namespace S7.Net.Types
                         numBytes = GetIncreasedNumberOfBytes(numBytes, elementType);
                     }
                 }
+                else if (property.PropertyType.IsClass)
+                {
+                    var add = ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0) ? 1 : 0;
+                    numBytes += GetClassSize(Activator.CreateInstance(property.PropertyType)) + add;
+                }
                 else
                 {
                     numBytes = GetIncreasedNumberOfBytes(numBytes, property.PropertyType);
                 }
             }
-            return (int)numBytes;
+            return (int)Math.Ceiling(numBytes);
         }
 
         private static object GetPropertyValue(Type propertyType, byte[] bytes, ref double numBytes)
@@ -177,6 +188,45 @@ namespace S7.Net.Types
                             bytes[(int)numBytes + 3] });
                     numBytes += 4;
                     break;
+
+                case "TimeSpan":
+                {
+                    //if (property.PropertyType == typeof(TimeSpan))
+                    //{
+                    //    property.SetValue(
+                    //        sourceClass,
+                    //        GetPropertyValue(property.PropertyType, bytes, ref numBytes),
+                    //        null);
+                    //    sourceClass = BitConverter.ToInt32(bytes, 0);
+                    //}
+
+                    numBytes = Math.Ceiling(numBytes);
+                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
+                        numBytes++;
+                    // hier auswerten
+                    uint src = DWord.FromBytes(bytes[(int)numBytes + 3],
+                        bytes[(int)numBytes + 2],
+                        bytes[(int)numBytes + 1],
+                        bytes[(int)numBytes + 0]);
+                    value = TimeSpan.FromMilliseconds(src);
+                    numBytes += 4;
+                }
+                    break;
+                case "DateTime":
+                {
+                    numBytes = Math.Ceiling(numBytes);
+                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
+                        numBytes++;
+                    // hier auswerten
+                    //uint src = DWord.FromBytes(bytes[(int)numBytes + 3],
+                    //    bytes[(int)numBytes + 2],
+                    //    bytes[(int)numBytes + 1],
+                    //    bytes[(int)numBytes + 0]);
+                    var ticks = BitConverter.ToInt64(bytes.Skip((int)numBytes).Take(8).ToArray(), 0);
+                    value = new DateTime(ticks);
+                    numBytes += 8;
+                }
+                    break;
                 default:
                     var propClass = Activator.CreateInstance(propertyType);
                     var buffer = new byte[GetClassSize(propClass)];
@@ -203,6 +253,7 @@ namespace S7.Net.Types
             if (bytes == null)
                 return;
 
+            
             if (bytes.Length != GetClassSize(sourceClass))
                 return;
 
@@ -223,6 +274,20 @@ namespace S7.Net.Types
                             i);
                     }
                 }
+
+                else if (property.PropertyType.IsClass)
+                {
+                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
+                        numBytes++;
+
+                    //var val = GetPropertyValue(property.PropertyType, bytes, ref numBytes);
+                    //property.SetValue(sourceClass, val, null);
+
+                    property.SetValue(
+                        sourceClass,
+                        GetPropertyValue(property.PropertyType, bytes, ref numBytes),
+                        null);
+                }
                 else
                 {
                     property.SetValue(
@@ -238,7 +303,7 @@ namespace S7.Net.Types
             int bytePos = 0;
             int bitPos = 0;
             byte[] bytes2 = null;
-
+            
             switch (propertyValue.GetType().Name)
             {
                 case "Boolean":
@@ -272,6 +337,15 @@ namespace S7.Net.Types
                 case "Double":
                     bytes2 = Double.ToByteArray((double)propertyValue);
                     break;
+
+                case "TimeSpan":
+                    bytes2 = DInt.ToByteArray((int)((TimeSpan) propertyValue).TotalMilliseconds);
+                    break;
+
+                case "DateTime":
+                    bytes2 = BitConverter.GetBytes(((DateTime)propertyValue).Ticks);// DInt.ToByteArray((int)((DateTime)propertyValue).Ticks);
+                    break;
+
                 default:
                     bytes2 = ToBytes(propertyValue);
                     break;
@@ -297,6 +371,17 @@ namespace S7.Net.Types
         /// <returns>A byte array or null if fails.</returns>
         public static byte[] ToBytes(object sourceClass)
         {
+            if (sourceClass is TimeSpan)
+            {
+                return BitConverter.GetBytes((int)((TimeSpan) sourceClass).TotalMilliseconds);
+            }
+
+            if (sourceClass is DateTime)
+            {
+                return BitConverter.GetBytes(((DateTime) sourceClass).Ticks);
+            }
+
+
             int size = GetClassSize(sourceClass);
             byte[] bytes = new byte[size];
             double numBytes = 0.0;
@@ -312,6 +397,12 @@ namespace S7.Net.Types
                     {
                         ToBytes(array.GetValue(i), bytes, ref numBytes);
                     }
+                }
+                else if (property.PropertyType.IsClass)
+                {
+                    var innerObj = property.GetValue(sourceClass, null);
+                    //var innerBytes = ToBytes(innerObj);
+                    ToBytes(innerObj, bytes, ref numBytes);
                 }
                 else
                 {

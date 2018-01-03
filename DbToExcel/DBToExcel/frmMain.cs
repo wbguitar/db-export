@@ -1942,7 +1942,8 @@ namespace DBToExcel
             try
             {
                 var root = fbd.SelectedPath;
-                foreach (var pair in CreateCSharp())
+                var dbs = CSharpHelper.CreateCSharp(lbxSelDbs.Items.Cast<clsDb>()); //CreateCSharp();
+                foreach (var pair in dbs)
                 {
                     var name = pair.Key;
                     var sb = pair.Value;
@@ -1964,153 +1965,160 @@ namespace DBToExcel
             Process.Start("explorer", fbd.SelectedPath);
         }
 
-        
-        public Dictionary<string, StringBuilder> CreateCSharp()
-        {
-            var items = lbxSelDbs.Items.Cast<clsDb>();
-            if (items == null)
-                return null;
+        #region CSHARP HELPER
 
-            var dict = new Dictionary<string, StringBuilder>();
+//        public Dictionary<string, StringBuilder> CreateCSharp()
+//        {
+//            var items = lbxSelDbs.Items.Cast<clsDb>();
+//            if (items == null)
+//                return null;
 
-            dict["DBBase"] = new StringBuilder(@"public class DBBase
-{
-    public int DB { get; set; }
-}
+//            var dict = new Dictionary<string, StringBuilder>();
 
-public class S7DBAttribute : System.Attribute
-{
-    public int DB { get; set; }
-}
+//            dict["DBBase"] = new StringBuilder(@"
+//using System;
+//
+//public class DBBase
+//{ }
+//
+//public class S7DBAttribute : System.Attribute
+//{
+//    public int DB { get; set; }
+//}
+//
+//public class S7ArrayAttribute : System.Attribute
+//{
+//    public int Count { get; set; }
+//}
+//");
 
-public class S7ArrayAttribute : System.Attribute
-{
-    public int Count { get; set; }
-}
-");
+//            foreach (var db in items)
+//            {
+//                try
+//                {
+//                    //Console.WriteLine("DB{0} - {1} - {2}", db.Number, db.Symbol, db.SymbolComment);
+//                    var sb = new StringBuilder();
 
-            foreach (var db in items)
-            {
-                try
-                {
-                    //Console.WriteLine("DB{0} - {1} - {2}", db.Number, db.Symbol, db.SymbolComment);
-                    var sb = new StringBuilder();
+//                    var className = db.Symbol.Replace(" ", "");
+//                    var comment = createComment(db, "");
+//                    sb.Append(comment);
+//                    sb.AppendFormat(@"[S7DB(DB = {1})]
+//public class {0}: DBBase // DB{1}
+//{{", className, db.Number);
+//                    var tags = db.Tags.Cast<clsTag>();
+//                    sb.Append(parseTags(tags));
+//                    sb.Append("\r\n}");
 
-                    var className = db.Symbol.Replace(" ", "");
-                    var comment = createComment(db, "");
-                    sb.Append(comment);
-                    sb.AppendFormat(@"[S7DB(DB = {1})]
-public class {0}: DBBase // DB{1}
-{{", className, db.Number);
-                    var tags = db.Tags.Cast<clsTag>();
-                    sb.Append(parseTags(tags));
-                    sb.Append("\r\n}");
-                    
-                    Console.WriteLine(sb);
-                    Console.WriteLine("-------");
+//                    Console.WriteLine(sb);
+//                    Console.WriteLine("-------");
 
-                    dict[string.Format("DB{0}", db.Number)] = sb;
-                }
-                catch (Exception exc)
-                {
-                    throw exc;
-                }
-            }
+//                    dict[string.Format("DB{0}", db.Number)] = sb;
+//                }
+//                catch (Exception exc)
+//                {
+//                    throw exc;
+//                }
+//            }
 
-            return dict;
-        }
+//            return dict;
+//        }
 
-        Dictionary<string, string> typeConverter = new Dictionary<string, string>()
-        {
-            {"INT", "short"},
-            {"BOOL", "bool"},
-            {"DINT", "int"},
-            {"REAL", "double"},
-            {"BYTE", "byte"},
-            {"WORD", "ushort"},
-            {"CHAR", "byte"},
-            {"TIME", "int"},
-            {"DWORD", "uint"},
-            {"DATE_AND_TIME", "DateTime"},
-            //{"", ""},
-            //{"", ""},
-            //{"", ""},
-            //{"", ""},// = new
-            //{"", ""},
-            //{"", ""},
-        };
+//        Dictionary<string, string> typeConverter = new Dictionary<string, string>()
+//        {
+//            {"INT", "short"},
+//            {"BOOL", "bool"},
+//            {"DINT", "int"},
+//            {"REAL", "double"},
+//            {"BYTE", "byte"},
+//            {"WORD", "ushort"},
+//            {"CHAR", "byte"},
+//            {"TIME", "int"},
+//            {"DWORD", "uint"},
+//            {"DATE_AND_TIME", "DateTime"},
+//            //{"", ""},
+//            //{"", ""},
+//            //{"", ""},
+//            //{"", ""},// = new
+//            //{"", ""},
+//            //{"", ""},
+//        };
 
-        StringBuilder createComment(IComment tag, string tabs)
-        {
-            var sb = new StringBuilder();
-            var comment = tag.Comment.Replace('\0', ' ');
-            sb.AppendFormat("\r\n{0}/// <summary>\r\n", tabs);
-            sb.AppendFormat(tabs + "/// {0}\r\n", comment);
-            sb.AppendLine(tabs + "/// </summary>");
-            return sb;
-        }
-        
-        StringBuilder parseTags(IEnumerable<clsTag> tags, int nestCount = 1)
-        {
-            var tabs = Enumerable.Range(0, nestCount).Select(i => "\t").Aggregate("", (s1, s2) => s1 + s2);
-            var sb = new StringBuilder();
-            foreach (var tag in tags)
-            {
-                //Console.WriteLine("\t{0} {1} {{ get; set; }} // {2}", tag.DataType, tag.Name, tag.Comment);
+//        StringBuilder createComment(IComment tag, string tabs)
+//        {
+//            var sb = new StringBuilder();
+//            var comment = tag.Comment.Replace('\0', ' ');
+//            sb.AppendFormat("\r\n{0}/// <summary>\r\n", tabs);
+//            sb.AppendFormat(tabs + "/// {0}\r\n", comment);
+//            sb.AppendLine(tabs + "/// </summary>");
+//            return sb;
+//        }
 
-                sb.Append(createComment(tag, tabs));
-                if (tag.DataType.StartsWith("UDT") || tag.DataType.StartsWith("STRUCT"))
-                {
-                    //sb.Append(createComment(tag, tabs));
-                    var className = "T_" + tag.Name;
-                    sb.AppendFormat("{0}public class {1}", tabs, className);
-                    var innerTags = parseTags(tag.Tags.Cast<clsTag>(), nestCount + 1);
-                    sb.AppendLine(tabs + "{");
-                    sb.Append(innerTags);
-                    sb.AppendLine(tabs + "}");
-                    sb.AppendFormat("\r\n{0}public {1} {2} {{ get; set; }}", tabs, className, tag.Name);
-                }
-                else if (tag.DataType.StartsWith("ARRAY"))
-                {
-                    int count = 0;
-                    string @type = "";
+//        StringBuilder parseTags(IEnumerable<clsTag> tags, int nestCount = 1)
+//        {
+//            var tabs = Enumerable.Range(0, nestCount).Select(i => "\t").Aggregate("", (s1, s2) => s1 + s2);
+//            var sb = new StringBuilder();
+//            foreach (var tag in tags)
+//            {
+//                //Console.WriteLine("\t{0} {1} {{ get; set; }} // {2}", tag.DataType, tag.Name, tag.Comment);
 
-                    var m = Regex.Match(tag.DataType, @"ARRAY\s.\[(\d*) \.* (\d*) \] OF (\w*)");
-                    if (m.Success)
-                    {
-                        count = int.Parse(m.Groups[2].Value);
-                        @type = m.Groups[3].Value;
-                    }
-                    else
-                    {
-                        count = tag.Tags.Count;
-                        @type = (tag.Tags[1] as clsTag).DataType;
-                    }
+//                sb.Append(createComment(tag, tabs));
+//                if (tag.DataType.StartsWith("UDT") || tag.DataType.StartsWith("STRUCT"))
+//                {
+//                    //sb.Append(createComment(tag, tabs));
+//                    var className = "T_" + tag.Name;
+//                    sb.AppendFormat("{0}public class {1}", tabs, className);
+//                    var innerTags = parseTags(tag.Tags.Cast<clsTag>(), nestCount + 1);
+//                    sb.AppendLine(tabs + "{");
+//                    sb.Append(innerTags);
+//                    sb.AppendLine(tabs + "}");
+//                    sb.AppendFormat(@"
+//{0}public {1} {2} {{ get; set; }}", tabs, className, tag.Name);
+//                }
+//                else if (tag.DataType.StartsWith("ARRAY"))
+//                {
+//                    int count = 0;
+//                    string @type = "";
 
-                    //sb.Append(createComment(tag, tabs));
-                    if (!typeConverter.ContainsKey(@type))
-                        throw new Exception(string.Format("Type not found: {0}", @type));
+//                    var m = Regex.Match(tag.DataType, @"ARRAY\s.\[(\d*) \.* (\d*) \] OF (\w*)");
+//                    if (m.Success)
+//                    {
+//                        count = int.Parse(m.Groups[2].Value);
+//                        @type = m.Groups[3].Value;
+//                    }
+//                    else
+//                    {
+//                        count = tag.Tags.Count;
+//                        @type = (tag.Tags[1] as clsTag).DataType;
+//                    }
 
-                    sb.AppendFormat("{0}[S7Array(Count = {1})]\r\n", tabs, count);
-                    sb.AppendFormat("{0}public {1} [] {2} {{ get; set; }} // = new {1}[{3}];\r\n", tabs, typeConverter[@type], tag.Name, count);
-                }
-                else if (tag.DataType.StartsWith("STRING"))
-                {
-                    //sb.Append(createComment(tag, tabs));
-                    sb.AppendFormat(tabs + "public string {0} {{ get; set; }}\r\n\r\n", tag.Name);
-                }
-                else
-                {
-                    if (!typeConverter.ContainsKey(tag.DataType))
-                        throw new Exception(string.Format("Type not found: {0}", tag.DataType));
+//                    //sb.Append(createComment(tag, tabs));
+//                    if (!typeConverter.ContainsKey(@type))
+//                        throw new Exception(string.Format("Type not found: {0}", @type));
 
-                    //sb.Append(createComment(tag, tabs));
-                    sb.AppendFormat(tabs + "public {0} {1} {{ get; set; }}\r\n\r\n", typeConverter[tag.DataType], tag.Name);
-                }
-            }
+//                    //sb.AppendFormat("{0}[S7Array(Count = {1})]\r\n", tabs, count);
+//                    sb.AppendFormat(@"
+//{0}protected {1} [] __{2} = new {1}[{3}];
+//{0}[S7Array(Count = {3})]
+//{0}public {1} [] {2} {{ get {{ return __{2}; }} set {{ __{2} = value; }} }} // = new {1}[{3}];\r\n", tabs, typeConverter[@type], tag.Name, count);
+//                }
+//                else if (tag.DataType.StartsWith("STRING"))
+//                {
+//                    //sb.Append(createComment(tag, tabs));
+//                    sb.AppendFormat(tabs + "public string {0} {{ get; set; }}\r\n\r\n", tag.Name);
+//                }
+//                else
+//                {
+//                    if (!typeConverter.ContainsKey(tag.DataType))
+//                        throw new Exception(string.Format("Type not found: {0}", tag.DataType));
 
-            return sb;
-        }
+//                    //sb.Append(createComment(tag, tabs));
+//                    sb.AppendFormat(tabs + "public {0} {1} {{ get; set; }}\r\n\r\n", typeConverter[tag.DataType], tag.Name);
+//                }
+//            }
+
+//            return sb;
+//        } 
+        #endregion
 
         public void CreateExcel()
         {

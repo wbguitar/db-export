@@ -32,9 +32,6 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="ICSharpCode.Decompiler">
-      <HintPath>.\ICSharpCode.Decompiler.dll</HintPath>
-    </Reference>
     <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Data" />
@@ -55,6 +52,7 @@
     <Compile Include="DBToExcel\clsDataType.cs" />
     <Compile Include="DBToExcel\clsDb.cs" />
     <Compile Include="DBToExcel\clsTag.cs" />
+    <Compile Include="DBToExcel\CSharpHelper.cs" />
     <Compile Include="DBToExcel\frmCpuProp.cs">
       <SubType>Form</SubType>
     </Compile>
