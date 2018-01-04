@@ -215,8 +215,20 @@ public class {0}: DBBase // DB{1}
                 }
                 else if (tag.DataType.StartsWith("STRING"))
                 {
+                    var m = Regex.Match(tag.DataType, @"STRING\s*\[\s*(\d*)\s*\]");
+                    if (!m.Success)
+                        throw new InvalidOperationException(string.Format("Unable to parse data type value: {0}", tag.DataType));
+                    var lenght = Int32.Parse(m.Groups[1].Value);
+
                     //sb.Append(createComment(tag, tabs));
-                    sb.AppendFormat(tabs + "public string {0} {{ get; set; }}\r\n\r\n", tag.Name);
+                    //sb.AppendFormat(tabs + "public string {0} {{ get; set; }}\r\n\r\n", tag.Name);
+                    sb.AppendFormat(@"
+{0}[S7Array(Count = {2})]
+{0}public string {1} {{ get; set; }}
+
+", tabs, tag.Name, lenght);
+
+
                 }
                 else
                 {

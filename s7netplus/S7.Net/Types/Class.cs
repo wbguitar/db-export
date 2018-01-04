@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using S7Cyb;
 
 namespace S7.Net.Types
 {
@@ -41,28 +43,26 @@ namespace S7.Net.Types
                     break;
                 case "Int16":
                 case "UInt16":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
                     numBytes += 2;
                     break;
                 case "Int32":
                 case "UInt32":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
+
                     numBytes += 4;
                     break;
                 case "Float":
                 case "Double":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
+
                     numBytes += 4;
                     break;
-
+                case "String":
+                    throw new InvalidOperationException("For string we should not be here!!");
                 default:
-                    var propertyClass = type == typeof(string) ? "" : Activator.CreateInstance(type);
+                   
+                    var propertyClass = Activator.CreateInstance(type);
                     numBytes += GetClassSize(propertyClass);
                     break;
             }
@@ -82,7 +82,7 @@ namespace S7.Net.Types
             if (instance is DateTime)
                 return sizeof(long);
             if (instance is string)
-                return 254;
+                return ((string) instance).Length; // correct???
 
             double numBytes = 0.0;
 
@@ -105,12 +105,17 @@ namespace S7.Net.Types
                 }
                 else if (property.PropertyType == typeof(string))
                 {
-                    numBytes += 254;
+                    var att =
+                        property.GetCustomAttributes(typeof(S7ArrayAttribute))
+                            .FirstOrDefault() as S7ArrayAttribute;
+                    if (att == null)
+                        throw new InvalidOperationException("String properties should be marked with S7ArrayAttribute specifying string lenght!!");
+                    numBytes += att.Count;
                 }
                 else if (property.PropertyType.IsClass)
                 {
-                    var add = ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0) ? 1 : 0;
-                    numBytes += GetClassSize(Activator.CreateInstance(property.PropertyType)) + add;
+                    numBytes += GetClassSize(Activator.CreateInstance(property.PropertyType));
+                    AdjustBytes(ref numBytes);
                 }
                 else
                 {
@@ -142,26 +147,23 @@ namespace S7.Net.Types
                     numBytes++;
                     break;
                 case "Int16":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
+
                     // hier auswerten
                     ushort source = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
                     value = source.ConvertToShort();
                     numBytes += 2;
                     break;
                 case "UInt16":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
+
                     // hier auswerten
                     value = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
                     numBytes += 2;
                     break;
                 case "Int32":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
+
                     // hier auswerten
                     uint sourceUInt = DWord.FromBytes(bytes[(int)numBytes + 3],
                                                                        bytes[(int)numBytes + 2],
@@ -171,21 +173,20 @@ namespace S7.Net.Types
                     numBytes += 4;
                     break;
                 case "UInt32":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
+
                     // hier auswerten
-                    value = DWord.FromBytes(
-                        bytes[(int)numBytes],
-                        bytes[(int)numBytes + 1],
-                        bytes[(int)numBytes + 2],
-                        bytes[(int)numBytes + 3]);
+                    //value = DWord.FromBytes(
+                    //    bytes[(int)numBytes],
+                    //    bytes[(int)numBytes + 1],
+                    //    bytes[(int)numBytes + 2],
+                    //    bytes[(int)numBytes + 3]);
+                    value = DWord.FromByteArray(bytes.Skip((int)numBytes).Take(4).ToArray());
                     numBytes += 4;
                     break;
                 case "Double":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
+
                     // hier auswerten
                     value = Double.FromByteArray(
                         new byte[] {
@@ -198,18 +199,8 @@ namespace S7.Net.Types
 
                 case "TimeSpan":
                 {
-                    //if (property.PropertyType == typeof(TimeSpan))
-                    //{
-                    //    property.SetValue(
-                    //        sourceClass,
-                    //        GetPropertyValue(property.PropertyType, bytes, ref numBytes),
-                    //        null);
-                    //    sourceClass = BitConverter.ToInt32(bytes, 0);
-                    //}
+                    AdjustBytes(ref numBytes);
 
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
                     // hier auswerten
                     uint src = DWord.FromBytes(bytes[(int)numBytes + 3],
                         bytes[(int)numBytes + 2],
@@ -221,9 +212,8 @@ namespace S7.Net.Types
                     break;
                 case "DateTime":
                 {
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
+
                     // hier auswerten
                     //uint src = DWord.FromBytes(bytes[(int)numBytes + 3],
                     //    bytes[(int)numBytes + 2],
@@ -238,17 +228,6 @@ namespace S7.Net.Types
                     numBytes += 8;
                 }
                     break;
-                //case "String":
-                //    {
-                //        numBytes = Math.Ceiling(numBytes);
-                //        if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                //            numBytes++;
-
-                //        var bstr = bytes.Skip((int)numBytes).Take(254).ToArray();
-                //        value = Encoding.ASCII.GetString(bstr);
-                //        numBytes += 254;
-                //    }
-                //    break;
                 default:
                     var propClass = Activator.CreateInstance(propertyType);
                     var buffer = new byte[GetClassSize(propClass)];
@@ -298,22 +277,24 @@ namespace S7.Net.Types
                 }
                 else if (property.PropertyType == typeof(string))
                 {
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
+                    AdjustBytes(ref numBytes);
 
-                    var bstr = bytes.Skip((int)numBytes).Take(254).ToArray();
-                    var val = Encoding.ASCII.GetString(bstr);
+                    var att =
+                        property.GetCustomAttributes(typeof(S7ArrayAttribute))
+                            .FirstOrDefault() as S7ArrayAttribute;
+                    
+                    if (att == null)
+                        throw new InvalidOperationException("String properties should be marked with S7ArrayAttribute specifying string lenght!!");
+
+                    var bstr = bytes.Skip((int)numBytes).Take(att.Count).ToArray();
+                    var val = S7.Net.Types.String.FromByteArray(bstr);
+                    Debug.Assert(val.Length == att.Count);
                     property.SetValue(sourceClass, val, null);
-                    numBytes += 254;
+                    numBytes += val.Length; // 1 char == 1 byte
                 }
                 else if (property.PropertyType.IsClass)
                 {
-                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                        numBytes++;
-
-                    //var val = GetPropertyValue(property.PropertyType, bytes, ref numBytes);
-                    //property.SetValue(sourceClass, val, null);
+                    AdjustBytes(ref numBytes);
 
                     property.SetValue(
                         sourceClass,
@@ -328,6 +309,18 @@ namespace S7.Net.Types
                         null);
                 }
             }
+        }
+
+        private static double AdjustBytes(ref double numBytes)
+        {
+            numBytes = Math.Ceiling(numBytes);
+            if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
+            {
+                //numBytes = Math.Floor(numBytes + 1);
+                numBytes++;
+            }
+
+            return numBytes;
         }
 
         private static void ToBytes(object propertyValue, byte[] bytes, ref double numBytes)
@@ -375,23 +368,14 @@ namespace S7.Net.Types
                     break;
 
                 case "DateTime":
-                    bytes2 = BitConverter.GetBytes(((DateTime)propertyValue).Ticks);// DInt.ToByteArray((int)((DateTime)propertyValue).Ticks);
+                    bytes2 = BitConverter.GetBytes(((DateTime)propertyValue).Ticks);
                     break;
 
                 case "String":
                 {
                     var str = propertyValue as string;
-                    if (str.Length < 254)
-                    {
-                        var len = str.Length;
-                        for (int i = 0; i < (254 - len); i++)
-                            str += " ";
-                    }
 
-                    bytes2 = str
-                        .Take(254)
-                        .Select(c => (byte)c)
-                        .ToArray();
+                    bytes2 = S7.Net.Types.String.ToByteArray(str);
                 }
                     
                     break;
@@ -403,10 +387,7 @@ namespace S7.Net.Types
             if (bytes2 != null)
             {
                 // add them
-                numBytes = Math.Ceiling(numBytes);
-                if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
-                    numBytes++;
-                bytePos = (int)numBytes;
+                bytePos = (int)AdjustBytes(ref numBytes);
                 for (int bCnt = 0; bCnt < bytes2.Length; bCnt++)
                     bytes[bytePos + bCnt] = bytes2[bCnt];
                 numBytes += bytes2.Length;
@@ -432,7 +413,7 @@ namespace S7.Net.Types
 
             if (sourceClass is string)
             {
-                return getBytes(sourceClass as string);
+                return S7.Net.Types.String.ToByteArray(sourceClass as string);
             }
 
 
@@ -454,15 +435,13 @@ namespace S7.Net.Types
                 }
                 else if (property.PropertyType == typeof(string))
                 {
-                    var sbytes = getBytes(property.GetValue(sourceClass, null) as string);
+                    var sbytes = getBytes(property, sourceClass);
                     Array.Copy(sbytes, 0, bytes, (int)numBytes, (int)sbytes.Length);
                     numBytes += sbytes.Length;
-                    //ToBytes(sbytes, bytes, ref numBytes);
                 }
                 else if (property.PropertyType.IsClass)
                 {
                     var innerObj = property.GetValue(sourceClass, null);
-                    //var innerBytes = ToBytes(innerObj);
                     ToBytes(innerObj, bytes, ref numBytes);
                 }
                 else
@@ -473,12 +452,23 @@ namespace S7.Net.Types
             return bytes;
         }
 
-        static byte[] getBytes(string s)
+        static byte[] getBytes(PropertyInfo property, object sourceClass)
         {
-            if (s.Length < 254)
+            var att =
+                property.GetCustomAttributes(typeof(S7ArrayAttribute))
+                    .FirstOrDefault() as S7ArrayAttribute;
+            var s = property.GetValue(sourceClass, null) as string;
+            if (att == null)
+                throw new InvalidOperationException("String properties should be marked with S7ArrayAttribute specifying string lenght!!");
+
+            // truncate if too long
+            if (s.Length > att.Count)
+                s = s.Substring(0, att.Count);
+            else if (s.Length < att.Count)
             {
+                // fill with spaces to get full length
                 var len = s.Length;
-                for (int i = 0; i < (254 - len); i++)
+                for (int i = 0; i < (att.Count - len); i++)
                 {
                     s += " ";
                 }

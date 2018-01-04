@@ -1,6 +1,7 @@
 ﻿using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -9,10 +10,11 @@ using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework.Internal;
 using S7.Net;
+using S7Cyb;
 
 namespace NUnit.Tests1
 {
-    
+
     [TestFixture]
     public class TestClass
     {
@@ -31,19 +33,21 @@ namespace NUnit.Tests1
             var types = ass.GetTypes().Where(t =>
                 typeof(DBBase).IsAssignableFrom(t) && t != typeof(DBBase));
 
-            TestDB<TestDB>(plc);
+
+            //DoTestDB<TestDB>(plc);
+            DoTestDB<DB_SCALE_1>(plc);
 
 
             // parse each DB class in the assembly and test read/write with PLC
             foreach (var t in types)
             {
-                TestDB(t, plc);
+                DoTestDB(t, plc);
             }
 
             plc.Close();
         }
 
-        private void TestDB(Type t, Plc plc)
+        private void DoTestDB(Type t, Plc plc)
         {
             // reads the DB number from class attribute
             var dbnum = t.GetCustomAttributes(typeof(S7DBAttribute)).FirstOrDefault() as S7DBAttribute;
@@ -59,9 +63,9 @@ namespace NUnit.Tests1
             Console.WriteLine("Class {0} (DB{1}) ok", t.Name, dbnum.DB);
         }
 
-        private void TestDB<T>(Plc plc) where T : DBBase
+        private void DoTestDB<T>(Plc plc) where T : DBBase
         {
-            TestDB(typeof(T), plc);
+            DoTestDB(typeof(T), plc);
         }
 
         object randomize(Type type)
@@ -87,6 +91,18 @@ namespace NUnit.Tests1
             if (type == typeof(TimeSpan))
                 return TimeSpan.FromMilliseconds(r.Next(int.MaxValue));
 
+            if (type == typeof(string))
+            {
+                var count = r.Next(256);
+                var sb = new StringBuilder();
+                for (int i = 0; i < count; i++)
+                {
+                    sb.Append((char)r.Next(1, 128));
+                }
+
+                return sb.ToString();
+            }
+
             var obj = Activator.CreateInstance(type);
             // create a randomized object
             foreach (PropertyInfo propertyInfo in type.GetProperties())
@@ -99,21 +115,18 @@ namespace NUnit.Tests1
                     var att =
                         propertyInfo.GetCustomAttributes(typeof(S7ArrayAttribute))
                             .FirstOrDefault() as S7ArrayAttribute;
-                    if (att != null)
-                    {
-                        var elemType = propertyInfo.PropertyType.GetElementType();
-                        // instantiate the array and randomize every element
-                        var arr = Array.CreateInstance(elemType, att.Count);
-                        for (int i = 0; i < att.Count; i++)
-                        {
-                            var rval = randomize(elemType);
-                            arr.SetValue(rval, i);
-                        }
-
-                        propertyInfo.SetValue(obj, arr);
-                    }
-                    else
+                    if (att == null)
                         throw new Exception("Array element should define S7ArrayAttribute");
+                    var elemType = propertyInfo.PropertyType.GetElementType();
+                    // instantiate the array and randomize every element
+                    var arr = Array.CreateInstance(elemType, att.Count);
+                    for (int i = 0; i < att.Count; i++)
+                    {
+                        var rval = randomize(elemType);
+                        arr.SetValue(rval, i);
+                    }
+
+                    propertyInfo.SetValue(obj, arr);
                 }
                 //else if (propertyInfo.PropertyType.IsClass)
                 //{
@@ -124,6 +137,16 @@ namespace NUnit.Tests1
                 {
                     // not an array, so we'll set the randomized value
                     var rval = randomize(propertyInfo.PropertyType);
+                    if (propertyInfo.PropertyType == typeof(string))
+                    {
+                        var att =
+                            propertyInfo.GetCustomAttributes(typeof(S7ArrayAttribute))
+                                .FirstOrDefault() as S7ArrayAttribute;
+                        if (att == null)
+                            throw new Exception("String element should define S7ArrayAttribute");
+                        if ((rval as string).Length > att.Count)
+                            rval = (rval as string).Substring(0, att.Count);
+                    }
                     propertyInfo.SetValue(obj, rval);
                 }
             }
@@ -132,88 +155,88 @@ namespace NUnit.Tests1
         }
 
         //[Test]
-        public void TestMethod1()
-        {
-            var plc = new S7.Net.Plc(CpuType.S7300, "213.131.0.161", 0, 2);
-            var err = plc.Open();
-            if (err != ErrorCode.NoError)
-                throw new Exception("");
+        //public void TestMethod1()
+        //{
+        //    var plc = new S7.Net.Plc(CpuType.S7300, "213.131.0.161", 0, 2);
+        //    var err = plc.Open();
+        //    if (err != ErrorCode.NoError)
+        //        throw new Exception("");
 
-            var t = typeof(TestDB);
+        //    var t = typeof(TestDB);
 
-            // reads the DB number from class attribute
-            var dbnum = t.GetCustomAttributes(typeof(S7DBAttribute)).FirstOrDefault() as S7DBAttribute;
+        //    // reads the DB number from class attribute
+        //    var dbnum = t.GetCustomAttributes(typeof(S7DBAttribute)).FirstOrDefault() as S7DBAttribute;
 
-            // test the DB class read from the PLC
-            //var db = plc.ReadClass(() => (DBBase)Activator.CreateInstance(t), dbnum.DB);
-            var db = new TestDB();
+        //    // test the DB class read from the PLC
+        //    //var db = plc.ReadClass(() => (DBBase)Activator.CreateInstance(t), dbnum.DB);
+        //    var db = new TestDB();
 
-            // create a randomized object
-            //foreach (PropertyInfo propertyInfo in t.GetProperties())
-            //{
-            //    // for every property
+        //    // create a randomized object
+        //    //foreach (PropertyInfo propertyInfo in t.GetProperties())
+        //    //{
+        //    //    // for every property
 
-            //    if (propertyInfo.PropertyType.IsArray)
-            //    {
-            //        // if it's an array we should instantiate the correct number of elements, read from the property attribute
-            //        var att =
-            //            propertyInfo.GetCustomAttributes(typeof(S7ArrayAttribute))
-            //                .FirstOrDefault() as S7ArrayAttribute;
-            //        if (att != null)
-            //        {
-            //            var elemType = propertyInfo.PropertyType.GetElementType();
-            //            // instantiate the array and randomize every element
-            //            var arr = Array.CreateInstance(elemType, att.Count);
-            //            for (int i = 0; i < att.Count; i++)
-            //            {
-            //                var rval = randomize(elemType);
-            //                arr.SetValue(rval, i);
-            //            }
+        //    //    if (propertyInfo.PropertyType.IsArray)
+        //    //    {
+        //    //        // if it's an array we should instantiate the correct number of elements, read from the property attribute
+        //    //        var att =
+        //    //            propertyInfo.GetCustomAttributes(typeof(S7ArrayAttribute))
+        //    //                .FirstOrDefault() as S7ArrayAttribute;
+        //    //        if (att != null)
+        //    //        {
+        //    //            var elemType = propertyInfo.PropertyType.GetElementType();
+        //    //            // instantiate the array and randomize every element
+        //    //            var arr = Array.CreateInstance(elemType, att.Count);
+        //    //            for (int i = 0; i < att.Count; i++)
+        //    //            {
+        //    //                var rval = randomize(elemType);
+        //    //                arr.SetValue(rval, i);
+        //    //            }
 
-            //            propertyInfo.SetValue(db, arr);
-            //        }
-            //        else
-            //            throw new Exception("Array element should define S7ArrayAttribute");
-            //    }
-            //    else if (propertyInfo.PropertyType.IsClass)
-            //    {
-            //        propertyInfo.SetValue(db, Activator.CreateInstance(propertyInfo.PropertyType));
-            //        // TODO: need recursion
-            //    }
-            //    else
-            //    {
-            //        // not an array, so we'll set the randomized value
-            //        var rval = randomize(propertyInfo.PropertyType);
-            //        propertyInfo.SetValue(db, rval);
-            //    }
-            //}
+        //    //            propertyInfo.SetValue(db, arr);
+        //    //        }
+        //    //        else
+        //    //            throw new Exception("Array element should define S7ArrayAttribute");
+        //    //    }
+        //    //    else if (propertyInfo.PropertyType.IsClass)
+        //    //    {
+        //    //        propertyInfo.SetValue(db, Activator.CreateInstance(propertyInfo.PropertyType));
+        //    //        // TODO: need recursion
+        //    //    }
+        //    //    else
+        //    //    {
+        //    //        // not an array, so we'll set the randomized value
+        //    //        var rval = randomize(propertyInfo.PropertyType);
+        //    //        propertyInfo.SetValue(db, rval);
+        //    //    }
+        //    //}
 
-            //db.myclass.v1 = (short)r.Next(short.MaxValue);
-            //db.myclass.v2 = (float)r.NextDouble();
+        //    //db.myclass.v1 = (short)r.Next(short.MaxValue);
+        //    //db.myclass.v2 = (float)r.NextDouble();
 
-            db = (TestDB)randomize(typeof(TestDB));
+        //    db = (TestDB)randomize(typeof(TestDB));
 
-            // test the DB class write to the PLC
-            var ecode = plc.WriteClass(db, dbnum.DB);
-            Assert.AreEqual(ecode, ErrorCode.NoError);
+        //    // test the DB class write to the PLC
+        //    var ecode = plc.WriteClass(db, dbnum.DB);
+        //    Assert.AreEqual(ecode, ErrorCode.NoError);
 
 
-            //var bytes = S7.Net.Types.Class.ToBytes(db);
-            //var ercode = plc.WriteBytes(DataType.DataBlock, dbnum.DB, 0, bytes);
-            //var db1 = plc.ReadClass(() => new Ricettepredosaggio(), dbnum.DB);
-            var db1 = plc.ReadClass<TestDB>(dbnum.DB);
+        //    //var bytes = S7.Net.Types.Class.ToBytes(db);
+        //    //var ercode = plc.WriteBytes(DataType.DataBlock, dbnum.DB, 0, bytes);
+        //    //var db1 = plc.ReadClass(() => new Ricettepredosaggio(), dbnum.DB);
+        //    var db1 = plc.ReadClass<TestDB>(dbnum.DB);
 
-            //bytes = plc.ReadBytes(DataType.DataBlock, dbnum.DB, 0, bytes.Length);
-            //DB4 db1 = new DB4();
-            //S7.Net.Types.Class.FromBytes(db1, bytes);
+        //    //bytes = plc.ReadBytes(DataType.DataBlock, dbnum.DB, 0, bytes.Length);
+        //    //DB4 db1 = new DB4();
+        //    //S7.Net.Types.Class.FromBytes(db1, bytes);
 
-            //Assert.AreEqual(db, db1);
-            Assert.DoesNotThrow(() => checkEquals(db, db1));
+        //    //Assert.AreEqual(db, db1);
+        //    Assert.DoesNotThrow(() => checkEquals(db, db1));
 
-            plc.Close();
-        }
+        //    plc.Close();
+        //}
 
-        void checkEquals(object o1, object o2)
+        void checkEquals(object o1, object o2, PropertyInfo property = null)
         {
             var t1 = o1.GetType();
             var t2 = o2.GetType();
@@ -221,12 +244,20 @@ namespace NUnit.Tests1
             if (t1 != t2)
                 throw new Exception(string.Format("Different types: {0} {1}", t1.FullName, t2.FullName));
 
-            if (t1.IsPrimitive || t1 == typeof(DateTime) || t1 == typeof(TimeSpan) || t1 == typeof(string))
+            if (t1.IsPrimitive || t1 == typeof(DateTime) || t1 == typeof(TimeSpan))
             {
                 //if (o1 != o2)
                 //    throw new Exception(string.Format("{0} different: {1} {2}", t1.Name, o1, o2));
 
-                Assert.AreEqual(o1, o2);
+                //Assert.AreEqual(o1, o2);
+                AreEqual(o1, o2, property);
+                return;
+            }
+
+            if (t1 == typeof(string))
+            {
+                //Assert.AreEqual(((string)o1).Trim(), ((string)o2).Trim());
+                AreEqual(((string)o1).Trim(), ((string)o2).Trim(), property);
                 return;
             }
             
@@ -240,19 +271,39 @@ namespace NUnit.Tests1
                 {
                     var arr1 = p1 as Array;
                     var arr2 = p2 as Array;
-                    Assert.AreEqual(arr1.Length, arr2.Length);
+                    //Assert.AreEqual(arr1.Length, arr2.Length);
+                    AreEqual(arr1.Length, arr2.Length, property);
                     //if (arr1.Length != arr2.Length)
                         //throw new Exception(string.Format("{0}: arrays with different lengths", pi.Name, arr1.Length, arr2.Length));
 
                     for (int i = 0; i < arr1.Length; i++)
                     {
-                        checkEquals(arr1.GetValue(i), arr2.GetValue(i));
+                        checkEquals(arr1.GetValue(i), arr2.GetValue(i), pi);
                     }
                 }
                 else //if (pi.PropertyType.IsClass)
                 {
-                    checkEquals(p1, p2);
+                    checkEquals(p1, p2, pi);
                 }
+            }
+        }
+
+        void AreEqual(object o1, object o2, PropertyInfo property)
+        {
+            if (!Object.Equals(o1, o2))
+            {
+                if (Debugger.IsAttached)
+                    Debugger.Break();
+                //Assert.AreEqual(o1, o2);
+                Console.Write(" ***** EQUALITY FAILURE ", property != null ? property.Name : "unspecified");
+                var bak = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Red;
+                var prop = property != null ? 
+                    string.Format("{0}.{1}", property.ReflectedType.ToString().Replace('+', '.').Replace("T_", "").Replace("S7Cyb.", ""), property.Name) 
+                    : "unspecified";
+                Console.Write("\t\t{0}\t\t", prop);
+                Console.ForegroundColor = bak;
+                Console.WriteLine(": overwritten by the PLC?", property != null ? property.Name : "unspecified");
             }
         }
     }
