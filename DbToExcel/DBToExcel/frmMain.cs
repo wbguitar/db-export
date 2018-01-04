@@ -19,6 +19,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml;
 
@@ -1927,7 +1928,7 @@ namespace DBToExcel
             this.CreateExcel();
         }
 
-        private void CreateCSHarpToolStripMenuItem_Click(object sender, EventArgs e)
+        private async void CreateCSHarpToolStripMenuItem_Click(object sender, EventArgs e)
         {
             var fbd = new FolderBrowserDialog()
             {
@@ -1938,31 +1939,113 @@ namespace DBToExcel
                 return;
 
             Cursor = Cursors.WaitCursor;
-            this.Enabled = false;
-            try
+            this.MenuStrip1.Enabled = false;
+            
+            
+            tpbProgress.Value = 0;
+            var items = lbxSelDbs.Items.Cast<clsDb>().ToArray();
+            tpbProgress.Maximum = items.Length;
+
+            //var bw = new BackgroundWorker();
+            //bw.DoWork += delegate
+            //{
+            //    try
+            //    {
+            //        var root = fbd.SelectedPath;
+
+            //        Dictionary<string, StringBuilder> dbs = null;
+            //        Invoke(new System.Action(async delegate
+            //        {
+            //            dbs = await CSharpHelper.CreateCSharpAsync(items, (i) => tpbProgress.Value = i);
+
+            //            tpbProgress.Value = 0;
+            //            tpbProgress.Maximum = dbs.Count;
+            //        }));
+                    
+            //        foreach (var pair in dbs)
+            //        {
+            //            var name = pair.Key;
+            //            var sb = pair.Value;
+
+            //            var fpath = Path.Combine(root, name + ".cs");
+            //            if (File.Exists(fpath))
+            //                File.Delete(fpath);
+
+            //            //var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+
+            //            File.WriteAllText(fpath, sb.ToString());
+
+
+            //            Invoke(new System.Action(() => tpbProgress.Value++));
+            //        }
+            //    }
+            //    finally
+            //    {
+            //        Invoke(new System.Action(() =>
+            //        {
+            //            Cursor = Cursors.Default;
+            //            this.Enabled = true;
+            //            tpbProgress.Value = 0;
+            //        }));
+            //    }
+            //};
+
+            //bw.RunWorkerCompleted += delegate { Process.Start("explorer", fbd.SelectedPath); };
+
+            //bw.RunWorkerAsync();
+
+
+            var root = fbd.SelectedPath;
+
+            //Dictionary<string, StringBuilder> dbs = null;
+
+            Task.Run(async () =>
             {
-                var root = fbd.SelectedPath;
-                var dbs = CSharpHelper.CreateCSharp(lbxSelDbs.Items.Cast<clsDb>()); //CreateCSharp();
-                foreach (var pair in dbs)
+                var dbs = await CSharpHelper.CreateCSharpAsync(items.ToArray(),
+                    (db) => Invoke(new System.Action(() =>
+                    {
+                        tpbProgress.Value++;
+                        tstStatus.Text = !string.IsNullOrEmpty(db.Symbol) ? db.Symbol : db.Number.ToString();
+                    })));
+
+                Invoke(new System.Action(() =>
                 {
-                    var name = pair.Key;
-                    var sb = pair.Value;
+                    tpbProgress.Value = 0;
+                    tpbProgress.Maximum = dbs.Count;
+                }));
 
-                    var fpath = Path.Combine(root, name + ".cs");
-                    if (File.Exists(fpath))
-                        File.Delete(fpath);
+                try
+                {
+                    foreach (var pair in dbs)
+                    {
+                        var name = pair.Key;
+                        var sb = pair.Value;
 
-                    //var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-                    File.WriteAllText(fpath, sb.ToString());
+                        var fpath = Path.Combine(root, name + ".cs");
+                        if (File.Exists(fpath))
+                            File.Delete(fpath);
+
+                        //var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+
+                        File.WriteAllText(fpath, sb.ToString());
+
+
+                        Invoke(new System.Action(() => tpbProgress.Value++));
+                    }
                 }
-            }
-            finally
-            {
-                Cursor = Cursors.Default;
-                this.Enabled = true;
-            }
+                finally
+                {
+                    Invoke(new System.Action(() =>
+                    {
+                        Cursor = Cursors.Default;
+                        this.MenuStrip1.Enabled = true;
+                        tpbProgress.Value = 0;
+                        tstStatus.Text = "";
+                    }));
+                }
 
-            Process.Start("explorer", fbd.SelectedPath);
+                Process.Start("explorer", fbd.SelectedPath);
+            });
         }
 
         #region CSHARP HELPER

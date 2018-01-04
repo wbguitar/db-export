@@ -1,15 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DBToExcel
 {
     public static class CSharpHelper
     {
-        private const string TAB = "\t"; 
+        private const string TAB = "\t";
+        private const string NAMESPACE = "S7Cyb";
+
         static readonly Dictionary<string, string> typeConverter = new Dictionary<string, string>()
         {
             {"BOOL", "bool"},
@@ -32,7 +36,33 @@ namespace DBToExcel
             //{"", ""},
         };
 
-        public static Dictionary<string, StringBuilder> CreateCSharp(IEnumerable<clsDb> items)
+
+        static StringBuilder NamespaceWrap(string ns, StringBuilder sb, string tabs = "")
+        {
+            var sb1 = new StringBuilder();
+            sb1.AppendFormat(@"namespace {0}
+{{", ns);
+
+            foreach (var line in sb.ToString().Split(new string [] { Environment.NewLine }, StringSplitOptions.None))
+            {
+                sb1.AppendFormat(@"{0}{1}
+", tabs, line);
+            }
+
+            sb1.Append(@"
+}");
+            return sb1;
+        }
+
+
+        public static async Task<Dictionary<string, StringBuilder>> CreateCSharpAsync(IEnumerable<clsDb> items,
+            Action<clsDb> onProgress = null)
+        {
+            //return Task < Dictionary<string, StringBuilder>>.Run(() => CreateCSharp(items, onProgress = null));
+            return CreateCSharp(items, onProgress);
+        }
+
+        public static Dictionary<string, StringBuilder> CreateCSharp(IEnumerable<clsDb> items, Action<clsDb> onProgress = null)
         {
             //var items = lbxSelDbs.Items.Cast<clsDb>();
             if (items == null)
@@ -40,69 +70,81 @@ namespace DBToExcel
 
             var dict = new Dictionary<string, StringBuilder>();
 
-            dict["DBBase"] = new StringBuilder(@"
-using System;
+//            dict["DBBase"] = new StringBuilder(@"
+//using System;
+//
+//public static class Utils
+//{
+//    /// <summary>
+//    /// Gets DateTime value from short
+//    /// </summary>
+//    /// <remarks>In S7 Date type represents number of days from 1990/1/1</remarks>
+//    /// <param name=""s7Date"">S7 Date value as short</param>
+//    /// <returns>The calculated date time</returns>
+//    public static DateTime GetDate(this short s7Date)
+//    {
+//        return DateTime.Parse(""1990-1-1"") + TimeSpan.FromDays(s7Date);
+//    }
+//}
+//
+///// <summary>
+///// Base class representing a basic Step 7 DB
+///// </summary>
+///// <remarks>Dummy class, used only for reflection purpose</remarks>
+//public class DBBase
+//{
+//}
+//
+///// <summary>
+///// Used to specify the number of DB related to a DB class
+///// </summary>
+//public class S7DBAttribute : System.Attribute
+//{
+//    public int DB { get; set; }
+//}
+//
+///// <summary>
+///// Used in an array property to specify the array dimension
+///// </summary>
+//public class S7ArrayAttribute : System.Attribute
+//{
+//    public int Count { get; set; }
+//}
+//");
 
-public static class Utils
-{
-    /// <summary>
-    /// Gets DateTime value from short
-    /// </summary>
-    /// <remarks>In S7 Date type represents number of days from 1990/1/1</remarks>
-    /// <param name=""s7Date"">S7 Date value as short</param>
-    /// <returns>The calculated date time</returns>
-    public static DateTime GetDate(this short s7Date)
-    {
-        return DateTime.Parse(""1990-1-1"") + TimeSpan.FromDays(s7Date);
-    }
-}
-
-/// <summary>
-/// Base class representing a basic Step 7 DB
-/// </summary>
-/// <remarks>Dummy class, used only for reflection purpose</remarks>
-public class DBBase
-{
-}
-
-/// <summary>
-/// Used to specify the number of DB related to a DB class
-/// </summary>
-public class S7DBAttribute : System.Attribute
-{
-    public int DB { get; set; }
-}
-
-/// <summary>
-/// Used in an array property to specify the array dimension
-/// </summary>
-public class S7ArrayAttribute : System.Attribute
-{
-    public int Count { get; set; }
-}
-");
-
+            var count = 0;
             foreach (var db in items)
             {
                 try
                 {
-                    //Console.WriteLine("DB{0} - {1} - {2}", db.Number, db.Symbol, db.SymbolComment);
+                    //Debug.WriteLine("DB{0} - {1} - {2}", db.Number, db.Symbol, db.SymbolComment);
                     var sb = new StringBuilder();
 
                     var className = db.Symbol.Replace(" ", "");
                     var comment = createComment(db, "");
                     sb.Append(comment);
-                    sb.AppendFormat(@"[S7DB(DB = {1})]
+                    sb.AppendFormat(@"using System;
+using System.Collections.Generic;
+using System.Linq;
+
+[S7DB(DB = {1})]
 public class {0}: DBBase // DB{1}
-{{", className, db.Number);
+{{
+", className, db.Number);
                     var tags = db.Tags.Cast<clsTag>();
                     sb.Append(parseTags(tags));
-                    sb.Append("\r\n}");
+                    sb.AppendFormat(@"
+}}");
 
-                    Console.WriteLine(sb);
-                    Console.WriteLine("-------");
+                    Debug.WriteLine(sb);
+                    Debug.WriteLine("-------");
 
-                    dict[string.Format("DB{0}", db.Number)] = sb;
+                    dict[string.Format("DB{0}_{1}", db.Number, className)] = NamespaceWrap(NAMESPACE, sb, TAB); //sb;
+
+
+
+                    if (onProgress != null)
+                        onProgress(db);
                 }
                 catch (Exception exc)
                 {
@@ -129,7 +171,7 @@ public class {0}: DBBase // DB{1}
             var sb = new StringBuilder();
             foreach (var tag in tags)
             {
-                //Console.WriteLine("TAB{0} {1} {{ get; set; }} // {2}", tag.DataType, tag.Name, tag.Comment);
+                //Debug.WriteLine("TAB{0} {1} {{ get; set; }} // {2}", tag.DataType, tag.Name, tag.Comment);
 
                 sb.Append(createComment(tag, tabs));
                 if (tag.DataType.StartsWith("UDT") || tag.DataType.StartsWith("STRUCT"))
@@ -140,7 +182,7 @@ public class {0}: DBBase // DB{1}
                     var innerTags = parseTags(tag.Tags.Cast<clsTag>(), nestCount + 1);
                     sb.AppendLine(tabs + "{");
                     sb.Append(innerTags);
-                    sb.AppendLine(tabs + "}");
+                    sb.AppendLine("\r\n" + tabs + "}");
                     sb.AppendFormat(@"
 {0}public {1} {2} {{ get; set; }}", tabs, className, tag.Name);
                 }
