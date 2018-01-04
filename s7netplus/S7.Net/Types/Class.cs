@@ -55,13 +55,11 @@ namespace S7.Net.Types
                 case "Float":
                 case "Double":
                     AdjustBytes(ref numBytes);
-
                     numBytes += 4;
                     break;
                 case "String":
                     throw new InvalidOperationException("For string we should not be here!!");
                 default:
-                   
                     var propertyClass = Activator.CreateInstance(type);
                     numBytes += GetClassSize(propertyClass);
                     break;
@@ -89,8 +87,12 @@ namespace S7.Net.Types
             var properties = GetAccessableProperties(instance.GetType());
             foreach (var property in properties)
             {
+                if (numBytes == 262.0)
+                    Console.WriteLine();
+                
                 if (property.PropertyType.IsArray)
                 {
+                    AdjustBytes(ref numBytes);
                     Type elementType = property.PropertyType.GetElementType();
                     Array array = (Array)property.GetValue(instance, null);
                     if (array.Length <= 0)
@@ -105,6 +107,7 @@ namespace S7.Net.Types
                 }
                 else if (property.PropertyType == typeof(string))
                 {
+                    AdjustBytes(ref numBytes);
                     var att =
                         property.GetCustomAttributes(typeof(S7ArrayAttribute))
                             .FirstOrDefault() as S7ArrayAttribute;
@@ -114,12 +117,14 @@ namespace S7.Net.Types
                 }
                 else if (property.PropertyType.IsClass)
                 {
+                    AdjustBytes(ref numBytes);
                     numBytes += GetClassSize(Activator.CreateInstance(property.PropertyType));
                     AdjustBytes(ref numBytes);
                 }
                 else
                 {
                     numBytes = GetIncreasedNumberOfBytes(numBytes, property.PropertyType);
+                    //AdjustBytes(ref numBytes);
                 }
             }
             return (int)Math.Ceiling(numBytes);

@@ -341,6 +341,7 @@ namespace S7.Net
                 count -= maxToRead;
                 index += maxToRead;
             }
+
             return resultBytes.ToArray();
         }
 
@@ -551,6 +552,10 @@ namespace S7.Net
 			
             // now read the package
             var resultBytes = ReadBytes(DataType.DataBlock, db, startByteAdr, numBytes);
+
+            if (resultBytes.Length != numBytes)
+                throw new InvalidOperationException("Read error");
+
             // and decode it
             Types.Class.FromBytes(sourceClass, resultBytes);
 

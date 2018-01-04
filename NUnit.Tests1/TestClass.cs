@@ -18,8 +18,14 @@ namespace NUnit.Tests1
     [TestFixture]
     public class TestClass
     {
-        
-
+        /// <summary>
+        /// Looks for every class derived from <see cref="DBBase"/> that represents a specific DB class and test read/write from/to PLC: the test randomize the values of the properties 
+        /// in the class, writes the values to the related DB in the PLC, then reads the DB again and checks if the two instance of the DB class are the same.
+        /// The purpose of the test is to verify that the classes are correctly aligned to the related DB (and possibly to verify that there are no read/write bugs). 
+        /// For the test to work properly, the classes should be generated from DbToExcel app, using the actual Step7 program that is loaded in the PLC; once the classes are generated
+        /// copy the *.cs files in the "DBs" folder of this test project, then run the TestDBReadWrite test.
+        /// NOTE: the PLC should be stopped before running the test, to ensure that there will be no overwrite on the PLC side.
+        /// </summary>
         private Random r = new Random();
         [Test(Author = "FBetti", Description = "Test PLC I/O for every DB class")]
         public void TestDBReadWrite()
@@ -33,10 +39,9 @@ namespace NUnit.Tests1
             var types = ass.GetTypes().Where(t =>
                 typeof(DBBase).IsAssignableFrom(t) && t != typeof(DBBase));
 
-
             //DoTestDB<TestDB>(plc);
-            DoTestDB<DB_SCALE_1>(plc);
-
+            //DoTestDB<DB_SCALE_1>(plc);
+            //DoTestDB<DB_Allarmi>(plc);
 
             // parse each DB class in the assembly and test read/write with PLC
             foreach (var t in types)
@@ -292,9 +297,6 @@ namespace NUnit.Tests1
         {
             if (!Object.Equals(o1, o2))
             {
-                if (Debugger.IsAttached)
-                    Debugger.Break();
-                //Assert.AreEqual(o1, o2);
                 Console.Write(" ***** EQUALITY FAILURE ", property != null ? property.Name : "unspecified");
                 var bak = Console.ForegroundColor;
                 Console.ForegroundColor = ConsoleColor.Red;

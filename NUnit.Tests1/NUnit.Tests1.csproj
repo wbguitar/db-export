@@ -38,12 +38,53 @@
     <Reference Include="System.Data" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DB2.cs" />
-    <Compile Include="DB2000.cs" />
-    <Compile Include="DB3000.cs" />
-    <Compile Include="DB4.cs" />
-    <Compile Include="DB6.cs" />
-    <Compile Include="DBBase.cs" />
+    <Compile Include="DBs\DB1014_DB_VECTOR.cs" />
+    <Compile Include="DBs\DB1015_DB_SCALE_1.cs" />
+    <Compile Include="DBs\DB1025_DB_SCALE_2.cs" />
+    <Compile Include="DBs\DB1035_DB_SCALE_3.cs" />
+    <Compile Include="DBs\DB1045_DB_SCALE_4.cs" />
+    <Compile Include="DBs\DB1055_DB_SCALE_5.cs" />
+    <Compile Include="DBs\DB1065_DB_SCALE_6.cs" />
+    <Compile Include="DBs\DB1075_DB_SCALE_7.cs" />
+    <Compile Include="DBs\DB1085_DB_SCALE_8.cs" />
+    <Compile Include="DBs\DB12_DB_Parametri_Analogiche.cs" />
+    <Compile Include="DBs\DB147_DB_Appoggio_FB147.cs" />
+    <Compile Include="DBs\DB1505_RicPredosaggioFut.cs" />
+    <Compile Include="DBs\DB1506_DBRicettaFut.cs" />
+    <Compile Include="DBs\DB1552_DIAG_PROFINET.cs" />
+    <Compile Include="DBs\DB1553_DIAG_AI.cs" />
+    <Compile Include="DBs\DB1561_DB_Allarmi_Darwin.cs" />
+    <Compile Include="DBs\DB15_RicettadiDosaggio.cs" />
+    <Compile Include="DBs\DB181_ValuesNEMO1int.cs" />
+    <Compile Include="DBs\DB182_ValuesNEMO1ext.cs" />
+    <Compile Include="DBs\DB1980_COD_IR.cs" />
+    <Compile Include="DBs\DB1_DBsemprea0.cs" />
+    <Compile Include="DBs\DB2000_DataExchangeCYB500.cs" />
+    <Compile Include="DBs\DB2020_DBMOTComandiHMI.cs" />
+    <Compile Include="DBs\DB253_DB_HMI_GESTSILIDEPOSITO.cs" />
+    <Compile Include="DBs\DB255_DB_PAR_GESTESILIDEPOSITO.cs" />
+    <Compile Include="DBs\DB2_Ricettepredosaggio.cs" />
+    <Compile Include="DBs\DB3000_Maestro.cs" />
+    <Compile Include="DBs\DB309_DB_POSIZIONI.cs" />
+    <Compile Include="DBs\DB30_DB_ScambioDati_Sick.cs" />
+    <Compile Include="DBs\DB313_DIAG_DP_10.cs" />
+    <Compile Include="DBs\DB314_DIAG_DP_11.cs" />
+    <Compile Include="DBs\DB315_DIAG_DP_3.cs" />
+    <Compile Include="DBs\DB316_DIAG_DP_4.cs" />
+    <Compile Include="DBs\DB317_DIAG_DP_6.cs" />
+    <Compile Include="DBs\DB318_DIAG_DP_7.cs" />
+    <Compile Include="DBs\DB319_DIAG_DP_8.cs" />
+    <Compile Include="DBs\DB320_DIAG_DP_9.cs" />
+    <Compile Include="DBs\DB401_DpDiag.cs" />
+    <Compile Include="DBs\DB46_DB_IN_OUT.cs" />
+    <Compile Include="DBs\DB4_TestDB.cs" />
+    <Compile Include="DBs\DB5_Parametri.cs" />
+    <Compile Include="DBs\DB605_AN_SIMU.cs" />
+    <Compile Include="DBs\DB61_DB_Allarmi.cs" />
+    <Compile Include="DBs\DB6_DatiBilancia.cs" />
+    <Compile Include="DBs\DB7_Controllo_Ricetta.cs" />
+    <Compile Include="DBs\DB98_DATA_DP.cs" />
+    <Compile Include="DBs\DB9_DB_dati_mitsubishi.cs" />
     <Compile Include="TestClass.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -59,6 +100,7 @@
       <Name>S7.Net</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

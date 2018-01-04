@@ -194,7 +194,9 @@ public class {0}: DBBase // DB{1}
                     var m = Regex.Match(tag.DataType, @"ARRAY\s.\[(\d*) \.* (\d*) \] OF (\w*)");
                     if (m.Success)
                     {
-                        count = int.Parse(m.Groups[2].Value);
+                        var from = int.Parse(m.Groups[1].Value);
+                        var to = int.Parse(m.Groups[2].Value);
+                        count = to - from + 1;
                         @type = m.Groups[3].Value;
                     }
                     else
