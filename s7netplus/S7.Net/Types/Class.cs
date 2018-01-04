@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 
 namespace S7.Net.Types
 {
@@ -61,7 +62,7 @@ namespace S7.Net.Types
                     break;
 
                 default:
-                    var propertyClass = Activator.CreateInstance(type);
+                    var propertyClass = type == typeof(string) ? "" : Activator.CreateInstance(type);
                     numBytes += GetClassSize(propertyClass);
                     break;
             }
@@ -80,6 +81,8 @@ namespace S7.Net.Types
                 return sizeof(int);
             if (instance is DateTime)
                 return sizeof(long);
+            if (instance is string)
+                return 254;
 
             double numBytes = 0.0;
 
@@ -99,6 +102,10 @@ namespace S7.Net.Types
                     {
                         numBytes = GetIncreasedNumberOfBytes(numBytes, elementType);
                     }
+                }
+                else if (property.PropertyType == typeof(string))
+                {
+                    numBytes += 254;
                 }
                 else if (property.PropertyType.IsClass)
                 {
@@ -223,10 +230,25 @@ namespace S7.Net.Types
                     //    bytes[(int)numBytes + 1],
                     //    bytes[(int)numBytes + 0]);
                     var ticks = BitConverter.ToInt64(bytes.Skip((int)numBytes).Take(8).ToArray(), 0);
+                    if (ticks < DateTime.MinValue.Ticks)
+                        ticks = DateTime.MinValue.Ticks;
+                    else if (ticks > DateTime.MaxValue.Ticks)
+                        ticks = DateTime.MaxValue.Ticks;
                     value = new DateTime(ticks);
                     numBytes += 8;
                 }
                     break;
+                //case "String":
+                //    {
+                //        numBytes = Math.Ceiling(numBytes);
+                //        if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
+                //            numBytes++;
+
+                //        var bstr = bytes.Skip((int)numBytes).Take(254).ToArray();
+                //        value = Encoding.ASCII.GetString(bstr);
+                //        numBytes += 254;
+                //    }
+                //    break;
                 default:
                     var propClass = Activator.CreateInstance(propertyType);
                     var buffer = new byte[GetClassSize(propClass)];
@@ -274,7 +296,17 @@ namespace S7.Net.Types
                             i);
                     }
                 }
+                else if (property.PropertyType == typeof(string))
+                {
+                    numBytes = Math.Ceiling(numBytes);
+                    if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
+                        numBytes++;
 
+                    var bstr = bytes.Skip((int)numBytes).Take(254).ToArray();
+                    var val = Encoding.ASCII.GetString(bstr);
+                    property.SetValue(sourceClass, val, null);
+                    numBytes += 254;
+                }
                 else if (property.PropertyType.IsClass)
                 {
                     if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)
@@ -346,6 +378,23 @@ namespace S7.Net.Types
                     bytes2 = BitConverter.GetBytes(((DateTime)propertyValue).Ticks);// DInt.ToByteArray((int)((DateTime)propertyValue).Ticks);
                     break;
 
+                case "String":
+                {
+                    var str = propertyValue as string;
+                    if (str.Length < 254)
+                    {
+                        var len = str.Length;
+                        for (int i = 0; i < (254 - len); i++)
+                            str += " ";
+                    }
+
+                    bytes2 = str
+                        .Take(254)
+                        .Select(c => (byte)c)
+                        .ToArray();
+                }
+                    
+                    break;
                 default:
                     bytes2 = ToBytes(propertyValue);
                     break;
@@ -381,6 +430,11 @@ namespace S7.Net.Types
                 return BitConverter.GetBytes(((DateTime) sourceClass).Ticks);
             }
 
+            if (sourceClass is string)
+            {
+                return getBytes(sourceClass as string);
+            }
+
 
             int size = GetClassSize(sourceClass);
             byte[] bytes = new byte[size];
@@ -398,6 +452,13 @@ namespace S7.Net.Types
                         ToBytes(array.GetValue(i), bytes, ref numBytes);
                     }
                 }
+                else if (property.PropertyType == typeof(string))
+                {
+                    var sbytes = getBytes(property.GetValue(sourceClass, null) as string);
+                    Array.Copy(sbytes, 0, bytes, (int)numBytes, (int)sbytes.Length);
+                    numBytes += sbytes.Length;
+                    //ToBytes(sbytes, bytes, ref numBytes);
+                }
                 else if (property.PropertyType.IsClass)
                 {
                     var innerObj = property.GetValue(sourceClass, null);
@@ -410,6 +471,19 @@ namespace S7.Net.Types
                 }
             }
             return bytes;
+        }
+
+        static byte[] getBytes(string s)
+        {
+            if (s.Length < 254)
+            {
+                var len = s.Length;
+                for (int i = 0; i < (254 - len); i++)
+                {
+                    s += " ";
+                }
+            }
+            return Encoding.ASCII.GetBytes(s);
         }
     }
 }
