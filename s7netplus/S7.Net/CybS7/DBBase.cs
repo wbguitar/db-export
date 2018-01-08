@@ -1,4 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
+using S7.Net;
+using S7.Net.Types;
 
 namespace S7Cyb
 {
@@ -13,6 +19,32 @@ namespace S7Cyb
         public static DateTime GetDate(this short s7Date)
         {
             return DateTime.Parse("1990-1-1") + TimeSpan.FromDays(s7Date);
+        }
+
+        public static bool Write<T>(this T db, string propertyName, Plc plc) where T : DBBase
+        {
+            var property = typeof(T).GetProperty(propertyName);
+            if (property == null)
+                return false;
+
+            var att = typeof(T).GetCustomAttributes(typeof(S7DBAttribute)).FirstOrDefault() as S7DBAttribute;
+
+            var props = typeof(T).GetProperties();
+            var count = 0.0;
+            foreach (var prop in props)
+            {
+                if (prop.Name == propertyName)
+                {
+                    var val = prop.GetValue(db);
+                    var err = plc.Write(DataType.DataBlock, att.DB, (int)count, val);
+                    return err == ErrorCode.NoError;
+                }
+                count += Class.GetClassSize(Activator.CreateInstance(prop.PropertyType));
+
+            }
+
+            Debug.Assert(false); // if the propertyName is correct we shouldn't be here!!
+            return false;
         }
     }
 
@@ -30,6 +62,7 @@ namespace S7Cyb
     public class S7DBAttribute : System.Attribute
     {
         public int DB { get; set; }
+        
     }
 
     /// <summary>
@@ -38,5 +71,10 @@ namespace S7Cyb
     public class S7ArrayAttribute : System.Attribute
     {
         public int Count { get; set; }
+    }
+
+    public class S7TagAttribute : Attribute
+    {
+        public int Address { get; set; }
     }
 }

@@ -28,7 +28,7 @@ namespace S7.Net.Types
 
         }
 
-        private static double GetIncreasedNumberOfBytes(double startingNumberOfBytes, Type type)
+        public static double GetIncreasedNumberOfBytes(double startingNumberOfBytes, Type type)
         {
             double numBytes = startingNumberOfBytes;
 
@@ -82,14 +82,15 @@ namespace S7.Net.Types
             if (instance is string)
                 return ((string) instance).Length; // correct???
 
+            var type = instance.GetType();
+            if (type.IsPrimitive)
+                return System.Runtime.InteropServices.Marshal.SizeOf(instance);
+
             double numBytes = 0.0;
 
             var properties = GetAccessableProperties(instance.GetType());
             foreach (var property in properties)
             {
-                if (numBytes == 262.0)
-                    Console.WriteLine();
-                
                 if (property.PropertyType.IsArray)
                 {
                     AdjustBytes(ref numBytes);
@@ -316,7 +317,7 @@ namespace S7.Net.Types
             }
         }
 
-        private static double AdjustBytes(ref double numBytes)
+        public static double AdjustBytes(ref double numBytes)
         {
             numBytes = Math.Ceiling(numBytes);
             if ((numBytes / 2 - Math.Floor(numBytes / 2.0)) > 0)

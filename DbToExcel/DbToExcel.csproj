@@ -78,6 +78,10 @@
       <Project>{58772E57-1830-4381-A8A6-6B515362529C}</Project>
       <Name>libnodave.net</Name>
     </ProjectReference>
+    <ProjectReference Include="..\s7netplus\S7.Net\S7.Net.csproj">
+      <Project>{BFD484F9-3F04-42A2-BF2A-60A189A25DCF}</Project>
+      <Name>S7.Net</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
