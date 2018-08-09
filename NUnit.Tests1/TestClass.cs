@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework.Internal;
 using S7.Net;
+using S7.Net.UnitTest.Helpers;
 using S7Cyb;
 
 namespace NUnit.Tests1
@@ -18,6 +19,8 @@ namespace NUnit.Tests1
     [TestFixture]
     public class TestClass
     {
+        private const string PLC_IP = "213.131.0.161";
+        private const string TEST_IP = "127.0.0.1";
         /// <summary>
         /// Looks for every class derived from <see cref="DBBase"/> that represents a specific DB class and test read/write from/to PLC: the test randomize the values of the properties 
         /// in the class, writes the values to the related DB in the PLC, then reads the DB again and checks if the two instance of the DB class are the same.
@@ -30,7 +33,7 @@ namespace NUnit.Tests1
         [Test(Author = "FBetti", Description = "Test PLC I/O for every DB class")]
         public void TestDBReadWrite()
         {
-            var plc = new S7.Net.Plc(CpuType.S7300, "213.131.0.161", 0, 2);
+            var plc = new S7.Net.Plc(CpuType.S7300, PLC_IP, 0, 2);
             var err = plc.Open();
             if (err != ErrorCode.NoError)
                 throw new Exception("");
@@ -39,7 +42,7 @@ namespace NUnit.Tests1
             var types = ass.GetTypes().Where(t =>
                 typeof(DBBase).IsAssignableFrom(t) && t != typeof(DBBase));
 
-            //DoTestDB<TestDB>(plc);
+            DoTestDB<TestDB>(plc);
             //DoTestDB<DB_SCALE_1>(plc);
             //DoTestDB<DB_Allarmi>(plc);
 
@@ -52,17 +55,40 @@ namespace NUnit.Tests1
             plc.Close();
         }
 
+        [Test]
+        public void TestDBReadWriteProperty()
+        {
+            S7TestServer.Start();
+
+            var plc = new S7.Net.Plc(CpuType.S7300, TEST_IP, 0, 2);
+            var err = plc.Open();
+            if (err != ErrorCode.NoError)
+                throw new Exception("");
+
+            var db = randomize(typeof(TestDB)) as TestDB;
+            //Assert.IsTrue(db.Write(nameof(db.count), plc));
+            //Assert.IsTrue(db.Write(nameof(db.timeofday), plc));
+            //Assert.IsTrue(db.Write(nameof(db.datetime), plc));
+            Assert.IsTrue(db.Write("db.count", plc));
+            Assert.IsTrue(db.Write("db.timeofday", plc));
+            Assert.IsTrue(db.Write("db.datetime", plc));
+
+            plc.Close();
+            S7TestServer.Stop();
+        }
+
         private void DoTestDB(Type t, Plc plc)
         {
             // reads the DB number from class attribute
             var dbnum = t.GetCustomAttributes(typeof(S7DBAttribute)).FirstOrDefault() as S7DBAttribute;
 
             // create a randomized object
-            var db = (DBBase) randomize(t);
+            var db = (DBBase)randomize(t);
             // writes to the PLC
             plc.WriteClass(db, dbnum.DB);
+
             // reads from the PLC
-            var db1 = plc.ReadClass(() => (DBBase) Activator.CreateInstance(t), dbnum.DB);
+            var db1 = plc.ReadClass(() => (DBBase)Activator.CreateInstance(t), dbnum.DB);
             // the two objects should be equals
             checkEquals(db, db1);
             Console.WriteLine("Class {0} (DB{1}) ok", t.Name, dbnum.DB);
@@ -265,7 +291,7 @@ namespace NUnit.Tests1
                 AreEqual(((string)o1).Trim(), ((string)o2).Trim(), property);
                 return;
             }
-            
+
             var props = o1.GetType().GetProperties();
             foreach (var pi in props)
             {
@@ -279,7 +305,7 @@ namespace NUnit.Tests1
                     //Assert.AreEqual(arr1.Length, arr2.Length);
                     AreEqual(arr1.Length, arr2.Length, property);
                     //if (arr1.Length != arr2.Length)
-                        //throw new Exception(string.Format("{0}: arrays with different lengths", pi.Name, arr1.Length, arr2.Length));
+                    //throw new Exception(string.Format("{0}: arrays with different lengths", pi.Name, arr1.Length, arr2.Length));
 
                     for (int i = 0; i < arr1.Length; i++)
                     {
@@ -300,8 +326,8 @@ namespace NUnit.Tests1
                 Console.Write(" ***** EQUALITY FAILURE ", property != null ? property.Name : "unspecified");
                 var bak = Console.ForegroundColor;
                 Console.ForegroundColor = ConsoleColor.Red;
-                var prop = property != null ? 
-                    string.Format("{0}.{1}", property.ReflectedType.ToString().Replace('+', '.').Replace("T_", "").Replace("S7Cyb.", ""), property.Name) 
+                var prop = property != null ?
+                    string.Format("{0}.{1}", property.ReflectedType.ToString().Replace('+', '.').Replace("T_", "").Replace("S7Cyb.", ""), property.Name)
                     : "unspecified";
                 Console.Write("\t\t{0}\t\t", prop);
                 Console.ForegroundColor = bak;
